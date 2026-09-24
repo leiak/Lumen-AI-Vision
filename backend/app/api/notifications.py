@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
+from app.core.metrics import NOTIFICATION_READS
 from app.models import Notification, User
 from app.schemas import NotificationRead
 
@@ -37,5 +38,25 @@ def mark_read(
     notification.status = "read"
     notification.read_at = datetime.utcnow()
     db.commit()
+    NOTIFICATION_READS.labels(mode="single").inc()
     db.refresh(notification)
     return notification
+
+
+@router.post("/read-all")
+def mark_all_read(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    notifications = (
+        db.query(Notification)
+        .filter(Notification.receiver_id == current_user.id, Notification.status != "read")
+        .all()
+    )
+    now = datetime.utcnow()
+    for notification in notifications:
+        notification.status = "read"
+        notification.read_at = now
+    db.commit()
+    NOTIFICATION_READS.labels(mode="batch").inc(len(notifications))
+    return {"updated": len(notifications)}

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user, require_roles
 from app.models import Camera
-from app.schemas import CameraCreate
+from app.schemas import CameraCreate, CameraUpdate
 
 router = APIRouter(prefix="/api/v1/cameras", tags=["cameras"])
 
@@ -29,3 +29,19 @@ def list_cameras(db: Session = Depends(get_db), current_user=Depends(get_current
         }
         for item in db.query(Camera).all()
     ]
+
+
+@router.patch("/{camera_id}")
+def update_camera(
+    camera_id: str,
+    payload: CameraUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles("admin", "operator")),
+) -> dict[str, str]:
+    camera = db.get(Camera, camera_id)
+    if not camera:
+        raise HTTPException(status_code=404, detail="camera not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(camera, field, value)
+    db.commit()
+    return {"id": camera.id}

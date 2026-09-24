@@ -7,6 +7,16 @@ __pycache__/
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
+.ultralytics/
+*.pt
+*.mp4
+*.png
+output/
+**/pytest-cache-files-*/
+.codex-patch
 .env
+.env.test
 .DS_Store
 
+frontend/src/**/*.js

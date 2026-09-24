@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import make_asgi_app
 
 from app.api import areas, cameras, edge, events, health, reviews
 from app.api import auth, models, notifications, tasks, users
 from app.api import audit, metrics
 from app.api import training_samples
+from app.api import keyframes
 from app.core.security import hash_password
 from app.models import User
 from app.core.config import get_settings
@@ -35,6 +37,8 @@ app.include_router(notifications.router)
 app.include_router(metrics.router)
 app.include_router(audit.router)
 app.include_router(training_samples.router)
+app.include_router(keyframes.router)
+app.mount("/metrics", make_asgi_app())
 
 
 @app.on_event("startup")

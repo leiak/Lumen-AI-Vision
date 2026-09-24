@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, verify_edge_key
+from app.core.metrics import EDGE_EVENTS, EDGE_KEYFRAMES, EDGE_UPLOAD_FAILURES
 from app.models import Area, Camera, Event, Keyframe, VehicleTrack
 from app.schemas import EventCreate, KeyframeCreate
 from app.services.event_service import create_task_for_event
@@ -13,7 +14,7 @@ router = APIRouter(prefix="/api/v1/edge", tags=["edge"], dependencies=[Depends(v
 
 
 @router.post("/events")
-def report_event(payload: EventCreate, db: Session = Depends(get_db)) -> dict[str, str | list[str]]:
+def report_event(payload: EventCreate, db: Session = Depends(get_db)) -> dict:
     if not db.get(Camera, payload.camera_id):
         raise HTTPException(status_code=404, detail="camera not found")
     area = db.get(Area, payload.area_id)
@@ -31,6 +32,7 @@ def report_event(payload: EventCreate, db: Session = Depends(get_db)) -> dict[st
             status=payload.track.status,
         )
         db.add(track)
+        db.flush()
     if payload.duration_seconds >= area.high_risk_seconds:
         risk_level = "high"
     elif payload.duration_seconds >= area.stay_threshold_seconds:
@@ -78,6 +80,11 @@ def report_event(payload: EventCreate, db: Session = Depends(get_db)) -> dict[st
         task = create_task_for_event(db, event)
         task_id = task.id
     db.commit()
+    EDGE_EVENTS.labels(
+        camera_id=payload.camera_id, area_id=payload.area_id, risk_level=event.risk_level
+    ).inc()
+    for frame in frame_ids:
+        EDGE_KEYFRAMES.labels(frame_role="event_payload").inc()
     return {"event_id": event_id, "task_id": task_id, "risk_level": event.risk_level, "accepted_keyframes": frame_ids}
 
 
@@ -90,6 +97,7 @@ def report_keyframe(payload: KeyframeCreate, track_id: str, event_id: str | None
     keyframe = Keyframe(**payload.model_dump(), track_id=track_id, event_id=event_id)
     db.add(keyframe)
     db.commit()
+    EDGE_KEYFRAMES.labels(frame_role=payload.frame_role).inc()
     return {"id": payload.id}
 
 
@@ -97,6 +105,7 @@ def report_keyframe(payload: KeyframeCreate, track_id: str, event_id: str | None
 def upload_keyframe(
     track_id: str = Form(...),
     event_id: str | None = Form(None),
+    frame_id: str | None = Form(None),
     frame_role: str = Form("state_change"),
     timestamp: datetime = Form(...),
     file: UploadFile = File(...),
@@ -104,16 +113,27 @@ def upload_keyframe(
 ) -> dict[str, str]:
     track = db.get(VehicleTrack, track_id)
     if not track:
+        EDGE_UPLOAD_FAILURES.labels(reason="track_not_found").inc()
         raise HTTPException(status_code=404, detail="track not found")
     if event_id and not db.get(Event, event_id):
+        EDGE_UPLOAD_FAILURES.labels(reason="event_not_found").inc()
         raise HTTPException(status_code=404, detail="event not found")
     data = file.file.read()
     if not data:
+        EDGE_UPLOAD_FAILURES.labels(reason="empty_file").inc()
         raise HTTPException(status_code=400, detail="empty file")
     object_key = object_name(f"keyframes/{track_id}")
     storage_url = upload_bytes(object_key, data, file.content_type)
+    if frame_id and db.get(Keyframe, frame_id):
+        keyframe = db.get(Keyframe, frame_id)
+        keyframe.storage_url = storage_url
+        keyframe.event_id = event_id
+        keyframe.frame_role = frame_role
+        keyframe.privacy_processed = False
+        db.commit()
+        return {"id": keyframe.id, "storage_url": storage_url}
     keyframe = Keyframe(
-        id=f"frame-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
+        id=frame_id or f"frame-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
         track_id=track_id,
         event_id=event_id,
         timestamp=timestamp,
@@ -123,4 +143,5 @@ def upload_keyframe(
     )
     db.add(keyframe)
     db.commit()
+    EDGE_KEYFRAMES.labels(frame_role=frame_role).inc()
     return {"id": keyframe.id, "storage_url": storage_url}

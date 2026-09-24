@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>库门口异常停留识别系统 · 业务流程全景图</title>
+  <style>
+    :root {
+      --bg: #f3f6fb;
+      --panel: #fff;
+      --ink: #182333;
+      --muted: #64748b;
+      --line: #dbe3ef;
+      --blue: #2563eb;
+      --blue-soft: #e8f0ff;
+      --green: #059669;
+      --green-soft: #e6f7f0;
+      --amber: #d97706;
+      --amber-soft: #fff3e0;
+      --red: #dc2626;
+      --red-soft: #fee9e9;
+      --purple: #7c3aed;
+      --purple-soft: #f0e9ff;
+      --slate-soft: #eef2f7;
+      --shadow: 0 12px 30px rgba(15, 23, 42, .08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, .12), transparent 24rem),
+        radial-gradient(circle at top right, rgba(5, 150, 105, .10), transparent 22rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    .hero {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 48px 28px 24px;
+    }
+    .hero-top { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--blue-soft); color: var(--blue);
+      border: 1px solid rgba(37, 99, 235, .2);
+      border-radius: 999px; padding: 7px 14px;
+      font-size: 13px; font-weight: 700;
+    }
+    h1 {
+      margin: 16px 0 12px;
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1.2;
+      letter-spacing: -1px;
+    }
+    .hero p { max-width: 760px; margin: 0; color: var(--muted); font-size: 17px; }
+    .hero-stat {
+      display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr));
+      gap: 10px; min-width: 450px; max-width: 520px;
+    }
+    .stat {
+      background: rgba(255,255,255,.86);
+      border: 1px solid var(--line); border-radius: 16px;
+      padding: 14px; box-shadow: var(--shadow);
+    }
+    .stat b { display: block; font-size: 20px; }
+    .stat span { color: var(--muted); font-size: 12px; }
+
+    main { max-width: 1240px; margin: 0 auto; padding: 12px 28px 72px; }
+    section { margin-top: 34px; scroll-margin-top: 92px; }
+    h2 { font-size: 24px; margin: 0 0 6px; letter-spacing: -.4px; }
+    h2::before { content: ""; display: inline-block; width: 7px; height: 20px; background: var(--blue); border-radius: 4px; margin-right: 10px; }
+    section > p.lead { color: var(--muted); margin: 0 0 18px; }
+
+    .nav {
+      position: sticky; top: 0; z-index: 20;
+      backdrop-filter: blur(12px);
+      background: rgba(243,246,251,.88);
+      border-bottom: 1px solid rgba(219,227,239,.9);
+    }
+    .nav-inner { max-width: 1240px; margin: auto; padding: 12px 28px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .nav a {
+      text-decoration: none; color: var(--muted);
+      border: 1px solid var(--line); background: #fff;
+      border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600;
+    }
+    .nav a:hover { color: var(--blue); border-color: var(--blue); }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+      overflow: hidden;
+    }
+    .one-liner {
+      display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px;
+    }
+    .sentence {
+      background: linear-gradient(135deg, #fff, var(--blue-soft));
+      border-radius: 18px; padding: 22px; border: 1px solid rgba(37,99,235,.12);
+      font-size: 20px; font-weight: 700;
+    }
+    .mini-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .mini {
+      background: #fff; border: 1px solid var(--line);
+      border-radius: 14px; padding: 14px;
+    }
+    .mini strong { display: block; margin-bottom: 3px; }
+    .mini span { color: var(--muted); font-size: 13px; }
+
+    .flow {
+      display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px;
+      align-items: stretch; margin-top: 18px;
+    }
+    .step {
+      position: relative;
+      border: 1px solid var(--line); border-radius: 18px;
+      background: #fff; padding: 16px 13px 14px; min-height: 210px;
+      transition: .2s ease;
+    }
+    .step:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: #a9c3f8; }
+    .step-num {
+      width: 27px; height: 27px; display: grid; place-items: center;
+      border-radius: 50%; background: var(--ink); color: #fff;
+      font-size: 12px; font-weight: 800; margin-bottom: 12px;
+    }
+    .step h3 { font-size: 16px; margin: 0 0 7px; }
+    .step p { margin: 0; color: var(--muted); font-size: 13px; }
+    .step::after {
+      content: ""; position: absolute; top: 48%; right: -13px; width: 16px; height: 2px;
+      background: #b9c8de; transform: rotate(24deg);
+    }
+    .step:last-child::after { display: none; }
+    .step.blue .step-num { background: var(--blue); }
+    .step.green .step-num { background: var(--green); }
+    .step.amber .step-num { background: var(--amber); }
+    .step.red .step-num { background: var(--red); }
+    .step.purple .step-num { background: var(--purple); }
+
+    .swimlane { display: grid; grid-template-columns: 118px 1fr; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+    .lane-label {
+      background: var(--slate-soft); padding: 18px 16px; font-weight: 800;
+      display: grid; place-items: center; text-align: center; border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+    .lane {
+      padding: 16px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: #fff;
+    }
+    .lane:last-child, .lane-label:last-child { border-bottom: 0; }
+    .lane-node {
+      border: 1px solid var(--line); border-radius: 12px;
+      padding: 9px 13px; background: #fbfdff; font-size: 13px; font-weight: 650;
+      box-shadow: 0 2px 6px rgba(15,23,42,.05);
+    }
+    .lane-arrow { color: #8b9bb4; font-weight: 800; }
+    .lane-node.input { border-color: #bfd6ff; background: var(--blue-soft); }
+    .lane-node.process { border-color: #c8e7dc; background: var(--green-soft); }
+    .lane-node.warning { border-color: #f5d7b8; background: var(--amber-soft); }
+    .lane-node.action { border-color: #e2c8fb; background: var(--purple-soft); }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card {
+      background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px;
+    }
+    .card h3 { margin: 0 0 10px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .tag { display: inline-block; border-radius: 999px; padding: 4px 9px; font-size: 12px; font-weight: 700; margin-right: 6px; }
+    .tag.green { color: var(--green); background: var(--green-soft); }
+    .tag.amber { color: var(--amber); background: var(--amber-soft); }
+    .tag.red { color: var(--red); background: var(--red-soft); }
+    .tag.blue { color: var(--blue); background: var(--blue-soft); }
+    .tag.purple { color: var(--purple); background: var(--purple-soft); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line);
+      font-size: 14px; vertical-align: top;
+    }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    td b { color: var(--ink); }
+    .table-wrap { overflow: auto; }
+
+    .state {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-items: center;
+    }
+    .state-node {
+      text-align: center; border: 1px solid var(--line); border-radius: 13px;
+      padding: 13px 10px; background: #fff; box-shadow: 0 2px 8px rgba(15,23,42,.05);
+    }
+    .state-node b { display: block; font-size: 14px; }
+    .state-node span { color: var(--muted); font-size: 12px; }
+    .state-arrow { color: #7f8ea8; font-weight: 800; text-align: center; }
+    .state-node.active { border-color: var(--blue); background: var(--blue-soft); }
+    .state-node.closed { border-color: var(--green); background: var(--green-soft); }
+    .state-node.rejected { border-color: var(--amber); background: var(--amber-soft); }
+
+    .rules { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .rule {
+      border-left: 4px solid var(--blue); background: #fff;
+      border-top: 1px solid var(--line); border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line); border-radius: 10px; padding: 13px;
+    }
+    .rule b { display: block; margin-bottom: 4px; }
+    .rule span { color: var(--muted); font-size: 13px; }
+
+    .arch {
+      display: grid; grid-template-columns: 1fr 38px 1.2fr 38px 1fr;
+      align-items: stretch; gap: 8px; margin-top: 16px;
+    }
+    .arch-zone { border-radius: 20px; padding: 18px; border: 1px solid var(--line); background: #fff; }
+    .arch-zone h3 { margin: 0 0 12px; font-size: 17px; }
+    .arch-item {
+      border: 1px solid var(--line); border-radius: 12px; background: #fbfdff;
+      padding: 11px 13px; margin-bottom: 9px; font-size: 13px;
+    }
+    .arch-item b { display: block; }
+    .arch-item span { color: var(--muted); font-size: 12px; }
+    .arch-arrow { display: grid; place-items: center; color: #75879f; font-size: 20px; font-weight: 800; }
+
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .kpi { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+    .kpi b { font-size: 24px; display: block; }
+    .kpi span { color: var(--muted); font-size: 13px; }
+
+    .footer {
+      max-width: 1240px; margin: 0 auto; padding: 0 28px 40px;
+      color: var(--muted); font-size: 13px;
+    }
+    details { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-top: 12px; }
+    summary { font-weight: 700; cursor: pointer; }
+    details p { color: var(--muted); font-size: 14px; }
+
+    @media (max-width: 1050px) {
+      .flow { grid-template-columns: repeat(4, 1fr); }
+      .step:nth-child(4n)::after { display: none; }
+      .arch { grid-template-columns: 1fr; }
+      .arch-arrow { transform: rotate(90deg); }
+      .one-liner, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .hero-stat { width: 100%; min-width: 0; grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .hero { padding-top: 32px; }
+      .hero-top { display: block; }
+      .hero-stat { margin-top: 18px; }
+      .flow { grid-template-columns: 1fr 1fr; }
+      .step:nth-child(2n)::after { display: none; }
+      .swimlane { grid-template-columns: 1fr; }
+      .lane-label { padding: 12px; }
+      .state { grid-template-columns: 1fr; }
+      .state-arrow { transform: rotate(90deg); padding: 4px; }
+      .rules, .kpis { grid-template-columns: 1fr; }
+      .mini-grid { grid-template-columns: 1fr; }
+      main, .hero, .nav-inner, .footer { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#overview">一句话理解</a>
+      <a href="#lifecycle">八步主流程</a>
+      <a href="#swimlane">角色泳道</a>
+      <a href="#states">状态机</a>
+      <a href="#rules">业务规则</a>
+      <a href="#arch">系统协同</a>
+      <a href="#closed">闭环机制</a>
+      <a href="#metrics">验收指标</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-top">
+      <div>
+        <span class="badge">库门口异常停留识别系统</span>
+        <h1>让连续视频变成<br />可处理、可解释、可闭环的风险事件</h1>
+        <p>系统不是把视频转发到云端，也不是只做一个报警弹窗，而是把“车辆进入关键区域—停留超时—行为变化—风险判断—人工处理—样本回流”连成一条完整业务链。</p>
+      </div>
+      <div class="hero-stat">
+        <div class="stat"><b>端边云</b><span>三级协同架构</span></div>
+        <div class="stat"><b>小模型 + VL</b><span>初筛加语义解释</span></div>
+        <div class="stat"><b>人工复核</b><span>结果回流持续优化</span></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="overview" class="panel">
+      <div class="one-liner">
+        <div class="sentence">
+          当车辆在库门口关键区域停留超过业务允许时间，且出现需要关注的状态变化时，系统自动生成风险事件，并推动安保、仓储和调度人员在规定时间内完成确认与处理。
+        </div>
+        <div class="mini-grid">
+          <div class="mini"><strong>不是回看系统</strong><span>重点在实时发现与处理闭环，而不是事后找录像。</span></div>
+          <div class="mini"><strong>不是车辆计数</strong><span>重点在停留时长、区域、行为状态和风险等级。</span></div>
+          <div class="mini"><strong>不是盲目上云</strong><span>边缘先过滤，云端只处理关键帧和疑似事件。</span></div>
+          <div class="mini"><strong>不是黑盒告警</strong><span>每个事件都有关键帧、模型结果和中文解释。</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="lifecycle">
+      <h2>八步主流程</h2>
+      <p class="lead">从车辆出现到事件关闭，每一步都有明确的输入、判断和产出。</p>
+      <div class="panel">
+        <div class="flow">
+          <div class="step blue"><div class="step-num">1</div><h3>车辆进入</h3><p>YOLOv8n 检测车辆，车辆轨迹与预定义库门口区域求交。</p></div>
+          <div class="step blue"><div class="step-num">2</div><h3>停留计时</h3><p>轨迹中心点持续落在区域内且满足静止条件，系统启动计时。</p></div>
+          <div class="step blue"><div class="step-num">3</div><h3>状态观察</h3><p>持续观察移动、驶离、车门、人员上下车等状态变化，容忍短时丢帧。</p></div>
+          <div class="step amber"><div class="step-num">4</div><h3>关键帧抽取</h3><p>只抽取进入、静止、状态变化、超时、驶离等高价值帧。</p></div>
+          <div class="step amber"><div class="step-num">5</div><h3>候选事件</h3><p>超过停留阈值或出现高价值状态变化时，边缘生成事件候选。</p></div>
+          <div class="step red"><div class="step-num">6</div><h3>云端判定</h3><p>轻量时空模型结合时长与状态初筛，系统完成去重与风险分级。</p></div>
+          <div class="step purple"><div class="step-num">7</div><h3>解释与复核</h3><p>VL 生成中文行为描述，中高风险进入复核任务和通知。</p></div>
+          <div class="step green"><div class="step-num">8</div><h3>处理与回流</h3><p>处理结果关闭事件，复核结果沉淀为训练样本和运营指标。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="swimlane">
+      <h2>角色泳道流程</h2>
+      <p class="lead">一眼看清谁发现、谁判定、谁解释、谁处理、谁优化。</p>
+      <div class="panel">
+        <div class="swimlane">
+          <div class="lane-label">边缘侧</div>
+          <div class="lane">
+            <div class="lane-node input">RTSP / 视频流</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">车辆检测</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">轨迹跟踪</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">区域判定</div><span class="lane-arrow">→</span>
+            <div class="lane-node warning">停留计时</div><span class="lane-arrow">→</span>
+            <div class="lane-node warning">关键帧抽取</div>
+          </div>
+
+          <div class="lane-label">云端接入</div>
+          <div class="lane">
+            <div class="lane-node input">事件 + 关键帧上报</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">鉴权与校验</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">轨迹落库</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">事件去重</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">对象存储</div>
+          </div>
+
+          <div class="lane-label">模型服务</div>
+          <div class="lane">
+            <div class="lane-node process">时空异常初筛</div><span class="lane-arrow">→</span>
+            <div class="lane-node warning">风险分级</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">VL 行为解释</div><span class="lane-arrow">→</span>
+            <div class="lane-node action">模型结果留存</div>
+          </div>
+
+          <div class="lane-label">业务处置</div>
+          <div class="lane">
+            <div class="lane-node warning">生成复核任务</div><span class="lane-arrow">→</span>
+            <div class="lane-node action">站内 / IM / 短信通知</div><span class="lane-arrow">→</span>
+            <div class="lane-node action">安保确认</div><span class="lane-arrow">→</span>
+            <div class="lane-node action">仓储或调度处理</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">事件关闭</div>
+          </div>
+
+          <div class="lane-label">持续优化</div>
+          <div class="lane">
+            <div class="lane-node action">复核结果</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">训练样本</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">标注与评估</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">阈值 / 模型更新</div><span class="lane-arrow">→</span>
+            <div class="lane-node process">边缘策略同步</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="states">
+      <h2>事件状态机</h2>
+      <p class="lead">事件必须能从候选推进到终态，不能永远停留在待处理列表里。</p>
+      <div class="panel">
+        <div class="state">
+          <div class="state-node"><b>candidate</b><span>边缘上报的候选事件</span></div>
+          <div class="state-arrow">→</div>
+          <div class="state-node active"><b>confirmed</b><span>人工确认存在异常</span></div>
+          <div class="state-arrow">→</div>
+          <div class="state-node"><b>processing</b><span>已派发处理任务</span></div>
+          <div class="state-arrow">→</div>
+          <div class="state-node closed"><b>closed</b><span>任务完成并闭环</span></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="grid-2">
+          <div class="card">
+            <h3><span class="tag green">正常路径</span>candidate → confirmed → closed</h3>
+            <p>人工确认为异常后生成处理任务；处理结果为现场已处理、误报或无需处理时，事件可以关闭。</p>
+          </div>
+          <div class="card">
+            <h3><span class="tag amber">排除路径</span>candidate → rejected</h3>
+            <p>复核确认为正常停留、短暂通过或误报时，事件进入 rejected，但记录仍保留用于模型评估。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="rules">
+      <h2>核心业务规则</h2>
+      <p class="lead">规则必须按区域、车辆类型和作业场景配置，避免“一刀切”造成误报。</p>
+      <div class="panel">
+        <div class="rules">
+          <div class="rule"><b>停留阈值</b><span>小型车默认 5 分钟；货车建议 8 分钟；叉车建议 3 分钟。</span></div>
+          <div class="rule"><b>高风险阈值</b><span>超过高风险时间仍滞留，触发更高优先级提醒。</span></div>
+          <div class="rule"><b>静止判断</b><span>轨迹中心点持续在区域内，配合移动阈值和短时丢帧容忍。</span></div>
+          <div class="rule"><b>状态增强</b><span>车门打开、人员上下车、装卸、倒车等影响风险等级。</span></div>
+        </div>
+        <div style="height:18px"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>风险等级</th><th>业务含义</th><th>系统动作</th><th>响应要求</th></tr></thead>
+            <tbody>
+              <tr><td><b>low</b></td><td>短暂停留或正常通行</td><td>仅记录轨迹，不推送告警</td><td>不需要响应</td></tr>
+              <tr><td><b>medium</b></td><td>超时但行为不明确</td><td>创建复核任务，发送站内通知</td><td>30 分钟内复核</td></tr>
+              <tr><td><b>high</b></td><td>超时且出现人员、车门、装卸等状态变化</td><td>实时提醒安保 / 仓储管理员，创建处理任务</td><td>5 分钟内响应</td></tr>
+              <tr><td><b>critical</b></td><td>堵住关键通道、疑似事故或长时间滞留</td><td>多渠道通知并立即升级</td><td>2 分钟内确认</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="arch">
+      <h2>端边云协同</h2>
+      <p class="lead">边缘负责减量，云端负责理解，管理端负责处置，监控负责保障。</p>
+      <div class="panel">
+        <div class="arch">
+          <div class="arch-zone">
+            <h3><span class="tag blue">端 / 边</span>视频理解与减量</h3>
+            <div class="arch-item"><b>视频接入</b><span>RTSP 摄像头或离线 MP4 回放</span></div>
+            <div class="arch-item"><b>YOLOv8n 检测</b><span>车辆 / 人员目标检测</span></div>
+            <div class="arch-item"><b>轨迹与区域</b><span>跟踪、区域交叠、静止计时</span></div>
+            <div class="arch-item"><b>关键帧策略</b><span>状态变化驱动，控制上传量</span></div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-zone">
+            <h3><span class="tag green">云端业务</span>接入、判定与闭环</h3>
+            <div class="arch-item"><b>FastAPI 后端</b><span>鉴权、事件、任务、通知、审计</span></div>
+            <div class="arch-item"><b>PostgreSQL</b><span>摄像头、区域、事件、复核、样本</span></div>
+            <div class="arch-item"><b>MinIO</b><span>关键帧与脱敏媒体对象</span></div>
+            <div class="arch-item"><b>Celery / RabbitMQ</b><span>异步解释、通知和超时升级</span></div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-zone">
+            <h3><span class="tag purple">运营处置</span>看板、复核与治理</h3>
+            <div class="arch-item"><b>Vue 3 管理端</b><span>事件、任务、配置和通知</span></div>
+            <div class="arch-item"><b>复核工作台</b><span>关键帧、模型结果、人工结论</span></div>
+            <div class="arch-item"><b>监控告警</b><span>Prometheus + Grafana</span></div>
+            <div class="arch-item"><b>审计与隐私</b><span>权限控制、脱敏、操作留痕</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="closed">
+      <h2>业务闭环机制</h2>
+      <p class="lead">一个可落地系统必须有四个闭环：处理闭环、模型闭环、配置闭环、监控闭环。</p>
+      <div class="grid-2">
+        <div class="panel">
+          <h2 style="font-size:19px">处置闭环</h2>
+          <p class="lead">确保每个中高风险事件都有责任人和终态。</p>
+          <div class="card" style="margin-bottom:12px">
+            <h3>1. 事件发现 → 任务</h3>
+            <p>medium 以上事件自动创建任务，并根据风险等级设置截止时间。</p>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <h3>2. 通知 → 已读 → 响应</h3>
+            <p>站内通知为默认通道；高风险场景可扩展企业 IM、短信或电话。</p>
+          </div>
+          <div class="card">
+            <h3>3. 超时 → 升级 → 关闭</h3>
+            <p>超过 due_at 仍未完成时，任务自动升级；处理结果回写事件状态。</p>
+          </div>
+        </div>
+        <div class="panel">
+          <h2 style="font-size:19px">模型与运营闭环</h2>
+          <p class="lead">用真实复核结果修正规则和模型，让系统越用越准。</p>
+          <div class="card" style="margin-bottom:12px">
+            <h3>1. 复核 → 样本</h3>
+            <p>复核结论 abnormal / normal 会生成训练样本，保留原始上下文。</p>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <h3>2. 样本 → 标注 → 评估</h3>
+            <p>按区域、车辆类型、时段分析误报和漏报，形成版本化评估报告。</p>
+          </div>
+          <div class="card">
+            <h3>3. 评估 → 阈值 / 模型更新</h3>
+            <p>更新区域阈值、抽帧策略、小模型版本或 VL 提示词，并记录审计。</p>
+          </div>
+        </div>
+      </div>
+
+      <details>
+        <summary>配置闭环：现场如何从试点走向正式运行？</summary>
+        <p>先配置摄像头和区域，再用离线视频验证抽帧与阈值；然后接入一路真实 RTSP 做试运行；根据复核结果调整区域边界、静止阈值和高风险阈值；最后开启通知、升级、监控和审计，逐步扩展到多路摄像头。</p>
+      </details>
+      <details>
+        <summary>监控闭环：系统如何知道自己在退化？</summary>
+        <p>后端暴露进程指标和业务指标；Prometheus 持续抓取；Grafana 展示服务健康、事件上报、关键帧上传、复核速率和任务处理速率。当事件突增、上传失败增多或复核延迟变高时，需要检查边缘、网络、模型服务和人员处理效率。</p>
+      </details>
+      <details>
+        <summary>隐私闭环：视频数据如何合规？</summary>
+        <p>关键帧在边缘或接入层做人脸模糊；车牌按授权策略选择明文、哈希或遮盖；算法人员默认只看脱敏样本；关键帧访问、模型调用、导出和配置变更都进入审计日志。</p>
+      </details>
+    </section>
+
+    <section id="metrics">
+      <h2>上线验收指标</h2>
+      <p class="lead">先保证业务闭环，再追求规模化和准确率提升。</p>
+      <div class="kpis">
+        <div class="kpi"><b>≥ 90%</b><span>异常停留发现率</span></div>
+        <div class="kpi"><b>≤ 15%</b><span>误报率</span></div>
+        <div class="kpi"><b>≤ 10s</b><span>事件识别延迟</span></div>
+        <div class="kpi"><b>≥ 90%</b><span>上传数据量下降比例</span></div>
+      </div>
+      <div style="height:18px"></div>
+      <div class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>阶段</th><th>目标</th><th>验收方式</th></tr></thead>
+            <tbody>
+              <tr><td><b>MVP 验证</b></td><td>离线视频能生成事件并完成复核</td><td>使用固定 MP4 和演示摄像头跑通上报、判定、复核、任务闭环</td></tr>
+              <tr><td><b>真实试点</b></td><td>一路真实摄像头稳定运行</td><td>连续运行 7 天，检查事件质量、网络稳定性和任务响应</td></tr>
+              <tr><td><b>阈值调优</b></td><td>降低误报，不漏高风险事件</td><td>按区域、车辆类型、时段分析误报和漏报</td></tr>
+              <tr><td><b>规模扩展</b></td><td>多点位复制部署</td><td>统一配置模板、权限模型、监控告警和样本回流流程</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>本文页面与项目实现保持同一业务口径：FastAPI + Vue 3 + YOLOv8n + VL 解释 + PostgreSQL / Redis / RabbitMQ / MinIO + Prometheus / Grafana。</p>
+  </footer>
+</body>
+</html>

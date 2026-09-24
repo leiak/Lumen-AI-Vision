@@ -17,7 +17,8 @@
       <el-table-column prop="timestamp" label="时间" />
       <el-table-column label="图片">
         <template #default="{ row }">
-          <a :href="row.storage_url" target="_blank">查看</a>
+          <img v-if="frameUrls[row.id]" :src="frameUrls[row.id]" class="keyframe-image" alt="关键帧" />
+          <span v-else>加载中</span>
         </template>
       </el-table-column>
     </el-table>
@@ -52,7 +53,7 @@
 
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
-import { onMounted, reactive, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../api/client";
 
@@ -60,6 +61,7 @@ const route = useRoute();
 const event = ref<any>(null);
 const keyframes = ref<any[]>([]);
 const modelResults = ref<any[]>([]);
+const frameUrls = ref<Record<string, string>>({});
 const review = reactive({ result: "abnormal", corrected_event_type: "", comment: "" });
 
 async function load() {
@@ -72,6 +74,10 @@ async function load() {
   event.value = responses[0].data;
   keyframes.value = responses[1].data;
   modelResults.value = responses[2].data;
+  await Promise.all(keyframes.value.map(async (frame) => {
+    const response = await api.get(`/keyframes/${frame.id}/file`, { responseType: "blob" });
+    frameUrls.value[frame.id] = URL.createObjectURL(response.data);
+  }));
 }
 
 async function submitReview() {
@@ -84,4 +90,17 @@ async function submitReview() {
 }
 
 onMounted(load);
+
+onBeforeUnmount(() => {
+  Object.values(frameUrls.value).forEach(URL.revokeObjectURL);
+});
 </script>
+
+<style scoped>
+.keyframe-image {
+  width: 180px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+</style>

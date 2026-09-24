@@ -24,7 +24,7 @@ class AreaCreate(BaseModel):
     camera_id: str
     name: str
     area_type: str = "gate"
-    polygon: list[list[int]] = []
+    polygon: list[list[float]] = []
     stay_threshold_seconds: int = 300
     high_risk_seconds: int = 600
 
@@ -32,7 +32,7 @@ class AreaCreate(BaseModel):
 class AreaUpdate(BaseModel):
     name: str | None = None
     area_type: str | None = None
-    polygon: list[list[int]] | None = None
+    polygon: list[list[float]] | None = None
     stay_threshold_seconds: int | None = None
     high_risk_seconds: int | None = None
     enabled: bool | None = None

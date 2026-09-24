@@ -2,6 +2,8 @@ import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
+from datetime import datetime
+
 from app.core.config import Settings
 from app.services import storage
 from app.services.vl_service import explain_event
@@ -29,5 +31,6 @@ def test_vl_fallback_explanation() -> None:
 
 def test_task_escalation(client_with_admin):
     client, headers = client_with_admin
-    response = client.get("/api/v1/tasks", headers=headers)
+    response = client.post("/api/v1/tasks/escalate-overdue", headers=headers)
     assert response.status_code == 200
+    assert all(item["status"] != "pending" or item["due_at"] > datetime.utcnow() for item in response.json())

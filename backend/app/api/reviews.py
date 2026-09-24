@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
+from app.core.metrics import REVIEWS
 from app.models import Event, Review
 from app.models import TrainingSample
 from app.schemas import ReviewCreate, ReviewRead
@@ -35,5 +36,6 @@ def review_event(event_id: str, payload: ReviewCreate, db: Session = Depends(get
         )
     db.add(review)
     db.commit()
+    REVIEWS.labels(result=payload.result).inc()
     db.refresh(review)
     return review

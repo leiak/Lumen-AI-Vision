@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
+from fastapi.encoders import jsonable_encoder
 
-from app.models import Event, Notification, Task
+from app.models import Event, Notification, Task, User
 from app.services.notification_service import dispatch_notification
 
 
@@ -26,8 +27,8 @@ def write_audit(
             action=action,
             resource_type=resource_type,
             resource_id=resource_id,
-            before_value=before_value,
-            after_value=after_value,
+    before_value=jsonable_encoder(before_value) if before_value is not None else None,
+    after_value=jsonable_encoder(after_value) if after_value is not None else None,
             ip=ip,
             user_agent=user_agent,
         )
@@ -36,11 +37,23 @@ def write_audit(
 
 def create_task_for_event(db: Session, event: Event) -> Task:
     due_minutes = 2 if event.risk_level == "critical" else 5 if event.risk_level == "high" else 30
+    assignee = (
+        db.query(User)
+        .filter(User.is_active.is_(True), User.role == "security")
+        .order_by(User.created_at)
+        .first()
+        or db.query(User)
+        .filter(User.is_active.is_(True), User.role == "admin")
+        .order_by(User.created_at)
+        .first()
+    )
+    assignee_id = assignee.id if assignee else "security-duty"
+    assignee_role = assignee.role if assignee else "security"
     task = Task(
         id=f"task-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
         event_id=event.id,
-        assignee_id="security-duty",
-        assignee_role="security",
+        assignee_id=assignee_id,
+        assignee_role=assignee_role,
         status="pending",
         due_at=datetime.utcnow() + timedelta(minutes=due_minutes),
     )

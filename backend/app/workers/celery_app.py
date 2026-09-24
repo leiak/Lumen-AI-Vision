@@ -16,4 +16,10 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="Asia/Shanghai",
     enable_utc=True,
+    beat_schedule={
+        "escalate-overdue-every-minute": {
+            "task": "tasks.escalate_overdue",
+            "schedule": 60.0,
+        }
+    },
 )

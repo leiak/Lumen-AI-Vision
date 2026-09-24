@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
+from app.core.metrics import TASK_UPDATES
 from app.models import Event, Task, User
 from app.schemas import TaskCreate, TaskRead, TaskUpdate
 from app.services.event_service import write_audit
@@ -61,6 +62,7 @@ def update_task(
         if event and task.result in {"on_site_handled", "false_alarm", "no_action_needed"}:
             event.status = "closed"
     db.commit()
+    TASK_UPDATES.labels(status=task.status, result=task.result or "unknown").inc()
     db.refresh(task)
     write_audit(db, current_user.id, "update_task", "task", task.id, before, data)
     db.commit()

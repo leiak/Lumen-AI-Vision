@@ -1,5 +1,6 @@
 <template>
-  <el-table :data="notifications">
+    <el-button type="primary" @click="markAllRead">全部已读</el-button>
+    <el-table :data="notifications" style="margin-top: 12px">
     <el-table-column prop="id" label="通知ID" />
     <el-table-column prop="event_id" label="事件ID" />
     <el-table-column prop="status" label="状态" />
@@ -25,6 +26,11 @@ async function load() {
 
 async function markRead(id: string) {
   await api.post(`/notifications/${id}/read`);
+  await load();
+}
+
+async function markAllRead() {
+  await api.post("/notifications/read-all");
   await load();
 }
 

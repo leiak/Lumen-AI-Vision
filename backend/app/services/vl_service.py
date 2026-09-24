@@ -4,6 +4,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.models import Event, Keyframe
+from app.services.storage import presigned_url
 
 
 def explain_event(event: Event, keyframes: list[Keyframe]) -> tuple[str, dict, float]:
@@ -22,10 +23,14 @@ def explain_event(event: Event, keyframes: list[Keyframe]) -> tuple[str, dict, f
         }
     ]
     for frame in keyframes:
+        try:
+            image_url = presigned_url(frame.storage_url)
+        except Exception:
+            image_url = frame.storage_url
         content.append(
             {
                 "type": "image_url",
-                "image_url": {"url": frame.storage_url},
+                "image_url": {"url": image_url},
             }
         )
     response = httpx.post(

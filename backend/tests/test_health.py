@@ -9,3 +9,9 @@ def test_healthz() -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
+
+def test_prometheus_metrics() -> None:
+    client = TestClient(app)
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "python_info" in response.text
