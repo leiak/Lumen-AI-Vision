@@ -1,0 +1,61 @@
+from datetime import datetime, timedelta
+
+from sqlalchemy.orm import Session
+
+from app.models import Event, Notification, Task
+from app.services.notification_service import dispatch_notification
+
+
+def write_audit(
+    db: Session,
+    user_id: str,
+    action: str,
+    resource_type: str,
+    resource_id: str,
+    before_value=None,
+    after_value=None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> None:
+    from app.models import AuditLog
+    import uuid
+    db.add(
+        AuditLog(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            before_value=before_value,
+            after_value=after_value,
+            ip=ip,
+            user_agent=user_agent,
+        )
+    )
+
+
+def create_task_for_event(db: Session, event: Event) -> Task:
+    due_minutes = 2 if event.risk_level == "critical" else 5 if event.risk_level == "high" else 30
+    task = Task(
+        id=f"task-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
+        event_id=event.id,
+        assignee_id="security-duty",
+        assignee_role="security",
+        status="pending",
+        due_at=datetime.utcnow() + timedelta(minutes=due_minutes),
+    )
+    db.add(task)
+    db.flush()
+    notification = Notification(
+        id=f"ntf-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
+        event_id=event.id,
+        task_id=task.id,
+        receiver_id=task.assignee_id,
+        receiver_role=task.assignee_role,
+        channel="in_app",
+        status="pending",
+    )
+    db.add(notification)
+    db.commit()
+    dispatch_notification(db, notification, f"事件 {event.id} 风险等级为 {event.risk_level}，请及时处理。")
+    return task
