@@ -4,6 +4,7 @@ from app.models.camera import Camera
 from app.models.event import Event
 from app.models.keyframe import Keyframe
 from app.models.model_result import ModelResult
+from app.models.person_behavior import PersonBehaviorResult, PersonTrack
 from app.models.notification import Notification
 from app.models.review import Review
 from app.models.task import Task
@@ -18,6 +19,8 @@ __all__ = [
     "Event",
     "Keyframe",
     "ModelResult",
+    "PersonBehaviorResult",
+    "PersonTrack",
     "Notification",
     "Review",
     "Task",

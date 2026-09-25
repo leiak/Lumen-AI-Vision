@@ -8,6 +8,7 @@ install-frontend:
 
 test:
 	cd backend && pytest -q
+	cd edge && pytest -q
 
 migrate:
 	cd backend && alembic upgrade head

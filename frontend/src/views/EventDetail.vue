@@ -10,6 +10,17 @@
       <el-descriptions-item label="停留秒数">{{ event.duration_seconds }}</el-descriptions-item>
     </el-descriptions>
 
+    <h3 v-if="event.behavior_results?.length">人员行为</h3>
+    <el-table v-if="event.behavior_results?.length" :data="event.behavior_results">
+      <el-table-column prop="person_track_id" label="人员ID" />
+      <el-table-column prop="behavior_label" label="行为" />
+      <el-table-column prop="behavior_confidence" label="置信度" />
+      <el-table-column prop="near_vehicle_seconds" label="车辆旁秒数" />
+      <el-table-column prop="sequence_frame_count" label="序列帧数" />
+      <el-table-column prop="model_type" label="模型类型" />
+      <el-table-column prop="model_version" label="模型版本" />
+    </el-table>
+
     <h3>关键帧</h3>
     <el-table :data="keyframes">
       <el-table-column prop="id" label="帧ID" />

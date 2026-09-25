@@ -16,6 +16,13 @@ class EdgeSettings(BaseSettings):
     movement_threshold_pixels: float = 15.0
     lost_track_tolerance_seconds: float = 2.0
     video_timestamp_mode: str = "auto"
+    pose_model_path: str = "yolov8n-pose.pt"
+    pose_sample_fps: float = 2.0
+    person_max_tracks: int = 5
+    person_near_vehicle_margin_pixels: float = 120.0
+    person_loitering_seconds: float = 120.0
+    person_movement_threshold_pixels: float = 12.0
+    person_lost_tolerance_seconds: float = 1.0
 
     class Config:
         env_file = ".env"

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -6,7 +6,19 @@ import cv2
 import httpx
 import numpy as np
 from supervision import ByteTrack, Detections
+
+from edge.visual_recognition_edge.runtime import configure_yolo_runtime
+
+configure_yolo_runtime()
+
 from ultralytics import YOLO
+
+from edge.visual_recognition_edge.person_behavior import (
+    BehaviorResult,
+    PersonBehaviorEngine,
+    PersonObservation,
+    PersonPoseDetector,
+)
 
 
 @dataclass
@@ -17,6 +29,7 @@ class FrameResult:
     keyframe_role: str
     track_id: str
     static_seconds: float
+    behavior_results: list[BehaviorResult] = field(default_factory=list)
 
 
 @dataclass
@@ -57,6 +70,15 @@ class EdgePipeline:
         movement_threshold_pixels: float = 15.0,
         lost_track_tolerance_seconds: float = 2.0,
         detector: VehicleDetector | None = None,
+        pose_model_path: str = "",
+        pose_sample_fps: float = 2.0,
+        person_max_tracks: int = 5,
+        person_near_vehicle_margin_pixels: float = 120.0,
+        person_loitering_seconds: float = 120.0,
+        person_movement_threshold_pixels: float = 12.0,
+        person_lost_tolerance_seconds: float = 1.0,
+        person_detector: PersonPoseDetector | None = None,
+        behavior_engine: PersonBehaviorEngine | None = None,
     ) -> None:
         self.camera_id = camera_id
         self.area_id = area_id
@@ -69,7 +91,25 @@ class EdgePipeline:
         self.keyframe_interval_seconds = keyframe_interval_seconds
         self.movement_threshold_pixels = movement_threshold_pixels
         self.lost_track_tolerance_seconds = lost_track_tolerance_seconds
+        self.pose_sample_fps = pose_sample_fps
+        self.person_lost_tolerance_seconds = person_lost_tolerance_seconds
         self.tracks: dict[int, TrackState] = {}
+        self.person_detector = person_detector or (
+            PersonPoseDetector(
+                camera_id=self.camera_id,
+                model_path=pose_model_path,
+                max_tracks=person_max_tracks,
+                near_vehicle_margin_pixels=person_near_vehicle_margin_pixels,
+            )
+            if pose_model_path
+            else None
+        )
+        self.behavior_engine = behavior_engine or PersonBehaviorEngine(
+            loitering_seconds=person_loitering_seconds,
+            movement_threshold_pixels=person_movement_threshold_pixels,
+        )
+        self.last_pose_sample_time: datetime | None = None
+        self._last_vehicle_box: dict[int, tuple[float, float, float, float]] = {}
 
     @staticmethod
     def center_in_polygon(center: tuple[float, float], polygon: list[list[float]]) -> bool:
@@ -103,10 +143,13 @@ class EdgePipeline:
                 last_seen = state.last_seen_time or state.enter_time
                 if (now - last_seen).total_seconds() > self.lost_track_tolerance_seconds:
                     del self.tracks[tracker_id]
+                    self._last_vehicle_box.pop(tracker_id, None)
             return None
 
         centers = [(float((box[0] + box[2]) / 2), float((box[1] + box[3]) / 2)) for box in detections.xyxy]
         candidates: list[tuple[int, float]] = []
+        for tracker_id, box in zip(detections.tracker_id, detections.xyxy, strict=False):
+            self._last_vehicle_box[int(tracker_id)] = tuple(float(value) for value in box)
         for tracker_id, center in zip(detections.tracker_id, centers, strict=False):
             if self.center_in_polygon(center, polygon):
                 state = self.tracks.get(int(tracker_id))
@@ -127,6 +170,8 @@ class EdgePipeline:
                 static_seconds = max(0.0, (now - (state.static_start_time or state.enter_time)).total_seconds())
                 candidates.append((int(tracker_id), static_seconds))
 
+        self._observe_persons(frame, now)
+
         active_ids = {tracker_id for tracker_id, _ in candidates}
         detected_ids = {int(tracker_id) for tracker_id in detections.tracker_id}
         for tracker_id, state in self.tracks.items():
@@ -139,6 +184,7 @@ class EdgePipeline:
                 > self.lost_track_tolerance_seconds
             ):
                 del self.tracks[tracker_id]
+                self._last_vehicle_box.pop(tracker_id, None)
 
         if not candidates:
             return None
@@ -168,7 +214,25 @@ class EdgePipeline:
             keyframe_role=role,
             track_id=state.track_id,
             static_seconds=round(static_seconds, 2),
+            behavior_results=self.behavior_engine.results_for_vehicle(state.track_id),
         )
+
+    def _observe_persons(self, frame: np.ndarray, now: datetime) -> None:
+        if self.person_detector is None or not self.person_detector.available:
+            return
+        sample_interval = 1.0 / max(0.1, self.pose_sample_fps)
+        if self.last_pose_sample_time is not None and (now - self.last_pose_sample_time).total_seconds() < sample_interval:
+            return
+        self.last_pose_sample_time = now
+        vehicles: list[tuple[str, tuple[float, float, float, float]]] = []
+        for tracker_id, state in self.tracks.items():
+            box = self._last_vehicle_box.get(tracker_id)
+            if box is not None:
+                vehicles.append((state.track_id, box))
+        observations = self.person_detector.detect(frame, vehicles)
+        for observation in observations:
+            self.behavior_engine.observe(observation, now, nearby_person_count=len(observations))
+        self.behavior_engine.prune(now, self.person_lost_tolerance_seconds)
 
     def upload_keyframe(self, frame: np.ndarray, result: FrameResult) -> dict[str, Any]:
         ok, encoded = cv2.imencode(".jpg", frame)
@@ -191,6 +255,7 @@ class EdgePipeline:
             "start_time": start_time.isoformat(),
             "duration_seconds": int(result.static_seconds),
             "keyframes": [],
+            "behaviors": [item.to_dict() for item in result.behavior_results],
             "dedup_key": f"{result.track_id}:abnormal_stay",
         }
         response = httpx.post(

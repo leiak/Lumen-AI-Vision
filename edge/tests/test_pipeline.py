@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import numpy as np
 from supervision import Detections
 
+from edge.visual_recognition_edge.person_behavior import PersonBehaviorEngine, PersonObservation
 from edge.visual_recognition_edge.pipeline import EdgePipeline
 
 
@@ -87,3 +88,68 @@ def test_polygon_supports_pixel_and_normalized_coordinates():
     edge.area_polygon = [[100, 100], [1180, 100], [1180, 620], [100, 620]]
     pixel = edge.normalize_polygon(frame())
     assert pixel[0] == [100.0, 100.0]
+
+
+def test_person_behavior_engine_escalates_to_loitering():
+    engine = PersonBehaviorEngine(loitering_seconds=120)
+    observation = PersonObservation(
+        person_track_id="track-person-1",
+        vehicle_track_id="track-vehicle-1",
+        vehicle_box=(200, 200, 400, 400),
+        bbox=(240, 240, 320, 340),
+        confidence=0.85,
+        keypoints=[],
+        center=(280, 290),
+    )
+    start = datetime(2026, 9, 24, 10, 0, 0)
+    first = engine.observe(observation, start)
+    assert first.behavior_label == "person_present"
+    assert first.near_vehicle_seconds == 0
+
+    second = engine.observe(observation, start + timedelta(seconds=130))
+    assert second.behavior_label == "long_time_loitering"
+    assert second.near_vehicle_seconds == 130
+    assert second.sequence_frame_count == 2
+
+
+class FakePersonPoseDetector:
+    available = True
+
+    def detect(self, frame, vehicles):
+        assert vehicles
+        vehicle_track_id, vehicle_box = vehicles[0]
+        return [
+            PersonObservation(
+                person_track_id="track-cam-test-person-1",
+                vehicle_track_id=vehicle_track_id,
+                vehicle_box=vehicle_box,
+                bbox=(260.0, 260.0, 340.0, 340.0),
+                confidence=0.8,
+                keypoints=[],
+                center=(300.0, 300.0),
+            )
+        ]
+
+
+def test_pipeline_attaches_person_behavior_to_event_frame():
+    edge = EdgePipeline(
+        camera_id="cam-test",
+        area_id="area-test",
+        model_path="unused",
+        api_base_url="http://localhost",
+        api_key="unused",
+        area_polygon=[[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]],
+        stay_threshold_seconds=1,
+        high_risk_seconds=10,
+        keyframe_interval_seconds=10,
+        movement_threshold_pixels=15,
+        lost_track_tolerance_seconds=2,
+        detector=FakeDetector(detections()),
+        person_detector=FakePersonPoseDetector(),
+    )
+    result = edge.process_frame(frame(), 0, datetime(2026, 9, 24, 10, 0, 0))
+    assert result is not None
+    assert result.behavior_results
+    assert result.behavior_results[0].person_track_id == "track-cam-test-person-1"
+    assert result.behavior_results[0].vehicle_track_id == "track-cam-test-1"
+    assert result.behavior_results[0].behavior_label == "person_present"

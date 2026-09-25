@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -23,3 +23,7 @@ class Event(Base):
     vehicle_plate_hash: Mapped[str | None] = mapped_column(String(64), default=None)
     dedup_key: Mapped[str | None] = mapped_column(String(200), default=None, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    behavior_results: Mapped[list["PersonBehaviorResult"]] = relationship(
+        back_populates="event",
+        cascade="all, delete-orphan",
+    )

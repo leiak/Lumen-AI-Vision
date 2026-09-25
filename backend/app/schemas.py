@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CameraCreate(BaseModel):
@@ -64,6 +64,28 @@ class TrackCreate(BaseModel):
     static_seconds: int = 0
 
 
+class PersonBehaviorCreate(BaseModel):
+    person_track_id: str
+    vehicle_track_id: str | None = None
+    behavior_label: str
+    behavior_confidence: float = Field(default=0.0, ge=0, le=1)
+    near_vehicle_seconds: float = Field(default=0.0, ge=0)
+    sequence_frame_count: int = Field(default=0, ge=0)
+    sequence_start_time: datetime
+    sequence_end_time: datetime
+    model_type: str = "rule"
+    model_version: str = "person-behavior-rule-v1"
+    output: dict | list | None = None
+
+
+class PersonBehaviorRead(PersonBehaviorCreate):
+    id: str
+    event_id: str
+
+    class Config:
+        from_attributes = True
+
+
 class EventCreate(BaseModel):
     camera_id: str
     area_id: str
@@ -73,6 +95,7 @@ class EventCreate(BaseModel):
     end_time: datetime | None = None
     duration_seconds: int = 0
     keyframes: list[KeyframeCreate] = []
+    behaviors: list[PersonBehaviorCreate] = []
     vehicle_plate_hash: str | None = None
     dedup_key: str | None = None
 
@@ -91,6 +114,7 @@ class EventRead(BaseModel):
     summary: str | None
     vehicle_plate_hash: str | None = None
     dedup_key: str | None = None
+    behavior_results: list[PersonBehaviorRead] = []
 
     class Config:
         from_attributes = True

@@ -1,13 +1,14 @@
 from datetime import datetime
+import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, verify_edge_key
 from app.core.metrics import EDGE_EVENTS, EDGE_KEYFRAMES, EDGE_UPLOAD_FAILURES
-from app.models import Area, Camera, Event, Keyframe, VehicleTrack
+from app.models import Area, Camera, Event, Keyframe, PersonBehaviorResult, PersonTrack, VehicleTrack
 from app.schemas import EventCreate, KeyframeCreate
-from app.services.event_service import create_task_for_event
+from app.services.event_service import create_task_for_event, event_risk_level
 from app.services.storage import object_name, upload_bytes
 
 router = APIRouter(prefix="/api/v1/edge", tags=["edge"], dependencies=[Depends(verify_edge_key)])
@@ -33,12 +34,25 @@ def report_event(payload: EventCreate, db: Session = Depends(get_db)) -> dict:
         )
         db.add(track)
         db.flush()
-    if payload.duration_seconds >= area.high_risk_seconds:
-        risk_level = "high"
-    elif payload.duration_seconds >= area.stay_threshold_seconds:
-        risk_level = "medium"
-    else:
-        risk_level = "low"
+    for behavior in payload.behaviors:
+        behavior.vehicle_track_id = behavior.vehicle_track_id or payload.track.id
+        person = db.get(PersonTrack, behavior.person_track_id)
+        if person:
+            person.last_seen_at = max(person.last_seen_at, behavior.sequence_end_time)
+            person.confidence = max(person.confidence, behavior.behavior_confidence)
+        else:
+            person = PersonTrack(
+                id=behavior.person_track_id,
+                vehicle_track_id=payload.track.id,
+                camera_id=payload.camera_id,
+                area_id=payload.area_id,
+                first_seen_at=behavior.sequence_start_time,
+                last_seen_at=behavior.sequence_end_time,
+                confidence=behavior.behavior_confidence,
+            )
+            db.add(person)
+
+    risk_level = event_risk_level(area, payload.duration_seconds, payload.behaviors)
 
     event_id = f"evt-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
     dedup_key = payload.dedup_key or f"{payload.camera_id}:{payload.area_id}:{payload.track.id}:{payload.start_time.isoformat()}"
@@ -67,6 +81,24 @@ def report_event(payload: EventCreate, db: Session = Depends(get_db)) -> dict:
         dedup_key=dedup_key,
     )
     db.add(event)
+    for behavior in payload.behaviors:
+        db.add(
+            PersonBehaviorResult(
+                id=str(uuid.uuid4()),
+                event_id=event_id,
+                person_track_id=behavior.person_track_id,
+                vehicle_track_id=behavior.vehicle_track_id or payload.track.id,
+                behavior_label=behavior.behavior_label,
+                behavior_confidence=behavior.behavior_confidence,
+                near_vehicle_seconds=behavior.near_vehicle_seconds,
+                sequence_frame_count=behavior.sequence_frame_count,
+                sequence_start_time=behavior.sequence_start_time,
+                sequence_end_time=behavior.sequence_end_time,
+                model_type=behavior.model_type,
+                model_version=behavior.model_version,
+                output=behavior.output or {},
+            )
+        )
     frame_ids = []
     for frame in payload.keyframes:
         if db.get(Keyframe, frame.id):

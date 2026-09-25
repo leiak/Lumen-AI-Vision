@@ -35,6 +35,38 @@ def write_audit(
     )
 
 
+RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+BEHAVIOR_RISK_FLOOR = {
+    "fall_down": "critical",
+    "person_entering_vehicle": "high",
+    "long_time_loitering": "high",
+    "multiple_persons": "high",
+    "loading_unloading": "low",
+    "person_present": "low",
+    "person_static": "low",
+    "person_moving": "low",
+    "unknown_behavior": "low",
+}
+
+
+def event_risk_level(area, duration_seconds: int, behaviors: list | None = None) -> str:
+    base = "low"
+    if duration_seconds >= area.high_risk_seconds:
+        base = "high"
+    elif duration_seconds >= area.stay_threshold_seconds:
+        base = "medium"
+
+    floor = "low"
+    for behavior in behaviors or []:
+        if float(behavior.behavior_confidence) < 0.5:
+            continue
+        candidate = BEHAVIOR_RISK_FLOOR.get(behavior.behavior_label, "low")
+        if RISK_ORDER[candidate] > RISK_ORDER[floor]:
+            floor = candidate
+
+    return floor if RISK_ORDER[floor] > RISK_ORDER[base] else base
+
+
 def create_task_for_event(db: Session, event: Event) -> Task:
     due_minutes = 2 if event.risk_level == "critical" else 5 if event.risk_level == "high" else 30
     assignee = (

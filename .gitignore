@@ -2,6 +2,9 @@ __pycache__/
 *.py[cod]
 *.sqlite
 *.db
+tmp_*.db
+tmp_storage/
+storage/
 .pytest_cache/
 .venv/
 node_modules/

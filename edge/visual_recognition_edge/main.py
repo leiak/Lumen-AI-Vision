@@ -25,6 +25,13 @@ def run() -> None:
         keyframe_interval_seconds=settings.keyframe_interval_seconds,
         movement_threshold_pixels=settings.movement_threshold_pixels,
         lost_track_tolerance_seconds=settings.lost_track_tolerance_seconds,
+        pose_model_path=settings.pose_model_path,
+        pose_sample_fps=settings.pose_sample_fps,
+        person_max_tracks=settings.person_max_tracks,
+        person_near_vehicle_margin_pixels=settings.person_near_vehicle_margin_pixels,
+        person_loitering_seconds=settings.person_loitering_seconds,
+        person_movement_threshold_pixels=settings.person_movement_threshold_pixels,
+        person_lost_tolerance_seconds=settings.person_lost_tolerance_seconds,
     )
     capture = cv2.VideoCapture(settings.video_source)
     fps = capture.get(cv2.CAP_PROP_FPS) or 25.0
