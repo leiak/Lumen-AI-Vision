@@ -9,8 +9,12 @@ from app.services.storage import presigned_url
 
 def explain_event(event: Event, keyframes: list[Keyframe]) -> tuple[str, dict, float]:
     settings = get_settings()
+    # 合规：仅允许上传脱敏后的关键帧给 VL 模型
+    safe_frames = [frame for frame in keyframes if frame.privacy_processed]
+    if not safe_frames:
+        return _fallback(event, reason="no privacy-processed keyframes available")
     if not settings.vl_api_url:
-        return _fallback(event)
+        return _fallback(event, frames=safe_frames)
 
     content: list[dict] = [
         {
@@ -22,7 +26,7 @@ def explain_event(event: Event, keyframes: list[Keyframe]) -> tuple[str, dict, f
             ),
         }
     ]
-    for frame in keyframes:
+    for frame in safe_frames:
         try:
             image_url = presigned_url(frame.storage_url)
         except Exception:
@@ -59,11 +63,13 @@ def explain_event(event: Event, keyframes: list[Keyframe]) -> tuple[str, dict, f
     return summary, {"summary": summary, "behavior": behavior, "possible_reason": possible_reason}, score
 
 
-def _fallback(event: Event) -> tuple[str, dict, float]:
+def _fallback(event: Event, reason: str | None = None, frames: list | None = None) -> tuple[str, dict, float]:
     minutes = max(1, round(event.duration_seconds / 60))
-    summary = f"车辆在关联区域停留约 {minutes} 分钟，系统判定为 {event.event_type}，建议人工确认现场状态。"
+    suffix = f"（{reason}）" if reason else ""
+    summary = f"车辆在关联区域停留约 {minutes} 分钟，系统判定为 {event.event_type}{suffix}，建议人工确认现场状态。"
     return summary, {
         "summary": summary,
         "behavior": ["车辆进入区域", "车辆停止", "车辆持续停留"],
         "possible_reason": "可能为异常滞留或等待作业，需要人工确认。",
+        "fallback_reason": reason or "vl_disabled",
     }, 0.80

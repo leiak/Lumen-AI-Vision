@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     temporal_model_name: str = "keyframe-temporal-transformer"
     temporal_model_version: str = "v0.1.0"
 
+    # 数据保留（运维设计 §3.4）：超过期限的行由 Celery beat 清理任务删除
+    retention_event_days: int = 90  # 事件主表
+    retention_audit_days: int = 365  # 审计日志
+    retention_metrics_days: int = 730  # 模型推理结果 / 时序分类
+    retention_notification_days: int = 365  # 通知记录
+    retention_cleanup_hour: int = 3  # 每天 03:xx 触发（避开业务高峰）
+
     class Config:
         env_file = ".env"
 

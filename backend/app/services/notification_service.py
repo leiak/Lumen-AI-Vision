@@ -1,4 +1,15 @@
+"""通知分发服务。
+
+支持的渠道（运维设计 §3.1）：
+  - in_app   : 站内通知，写入数据库即视为已发送
+  - webhook  : 向 settings.notification_webhook_url 推送
+  - email    : 经 SMTP 发送（需配置 SMTP_* 环境变量）
+  - im/sms/phone_call  : 当前为 noop 占位，预留扩展
+未识别的渠道会标记为 failed。
+"""
+
 import smtplib
+from datetime import datetime
 from email.message import EmailMessage
 
 import httpx
@@ -11,7 +22,11 @@ from app.models import Notification
 def dispatch_notification(db: Session, notification: Notification, message: str) -> Notification:
     settings = get_settings()
     try:
-        if notification.channel == "webhook":
+        if notification.channel == "in_app":
+            # 站内通知：写入即视为已送达，前端通过 GET /api/v1/notifications 拉取
+            notification.sent_at = datetime.utcnow()
+            notification.status = "sent"
+        elif notification.channel == "webhook":
             if not settings.notification_webhook_url:
                 raise ValueError("webhook url not configured")
             response = httpx.post(
@@ -20,13 +35,21 @@ def dispatch_notification(db: Session, notification: Notification, message: str)
                 timeout=10,
             )
             response.raise_for_status()
+            notification.sent_at = datetime.utcnow()
+            notification.status = "sent"
         elif notification.channel == "email":
             _send_email(notification.receiver_id, message)
-        notification.status = "sent"
-        notification.retry_count += 1
+            notification.sent_at = datetime.utcnow()
+            notification.status = "sent"
+        elif notification.channel in {"im", "sms", "phone_call"}:
+            # 暂未实现，仅记录预留扩展点
+            raise NotImplementedError(f"channel {notification.channel} not yet wired")
+        else:
+            raise ValueError(f"unsupported channel {notification.channel}")
+        notification.retry_count = (notification.retry_count or 0) + 1
     except Exception:
         notification.status = "failed"
-        notification.retry_count += 1
+        notification.retry_count = (notification.retry_count or 0) + 1
     db.add(notification)
     db.commit()
     db.refresh(notification)

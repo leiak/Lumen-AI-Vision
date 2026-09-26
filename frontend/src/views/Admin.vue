@@ -96,13 +96,26 @@
         <el-table-column prop="used_for_training" label="已训练" />
       </el-table>
     </el-tab-pane>
+
+    <el-tab-pane label="数据导出" name="exports">
+      <el-alert type="info" :closable="false" title="导出 CSV 格式数据，按时间倒序导出最近 10000~50000 行" />
+      <div class="export-actions">
+        <el-button type="primary" @click="exportEvents">导出事件 CSV</el-button>
+        <el-button type="success" @click="exportMetrics">导出模型结果 CSV</el-button>
+        <el-button v-if="auth.user?.role === 'admin'" type="warning" @click="exportAuditLogs">导出审计日志 CSV</el-button>
+      </div>
+      <p class="export-hint">审计日志导出仅对管理员可见，请妥善保存并遵守数据合规要求。</p>
+    </el-tab-pane>
   </el-tabs>
 </template>
 
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
 import { onMounted, reactive, ref } from "vue";
+import { useAuthStore } from "../stores/auth";
 import { api } from "../api/client";
+
+const auth = useAuthStore();
 
 const activeTab = ref("cameras");
 const cameras = ref<any[]>([]);
@@ -175,5 +188,51 @@ async function toggleUser(row: any) {
   await load();
 }
 
+async function exportEvents() {
+  const response = await api.get("/exports/events", { responseType: "blob" });
+  downloadBlob(response.data, response.headers["content-disposition"]?.split("filename=")[1]?.replace(/"/g, "") || "events.csv");
+  ElMessage.success("事件 CSV 已下载");
+}
+
+async function exportMetrics() {
+  const response = await api.get("/exports/metrics", { responseType: "blob" });
+  downloadBlob(response.data, response.headers["content-disposition"]?.split("filename=")[1]?.replace(/"/g, "") || "metrics.csv");
+  ElMessage.success("模型结果 CSV 已下载");
+}
+
+async function exportAuditLogs() {
+  if (auth.user?.role !== "admin") {
+    ElMessage.warning("仅管理员可导出审计日志");
+    return;
+  }
+  const response = await api.get("/exports/audit-logs", { responseType: "blob" });
+  downloadBlob(response.data, response.headers["content-disposition"]?.split("filename=")[1]?.replace(/"/g, "") || "audit-logs.csv");
+  ElMessage.success("审计日志 CSV 已下载");
+}
+
+function downloadBlob(data: BlobPart, filename: string) {
+  const url = window.URL.createObjectURL(new Blob([data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+}
+
 onMounted(load);
 </script>
+
+<style scoped>
+.export-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+}
+.export-hint {
+  margin-top: 12px;
+  color: #909399;
+  font-size: 12px;
+}
+</style>

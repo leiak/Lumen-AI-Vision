@@ -113,6 +113,31 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <el-row v-if="accuracy.length" :gutter="12" class="section">
+      <el-col :span="24">
+        <el-card>
+          <h3>模型准确率</h3>
+          <el-table :data="accuracy" size="small">
+            <el-table-column prop="model_type" label="模型" />
+            <el-table-column prop="sample_count" label="样本数" width="100" align="right" />
+            <el-table-column prop="precision" label="精确率" width="120" align="right">
+              <template #default="{ row }">{{ percent(row.precision) }}</template>
+            </el-table-column>
+            <el-table-column prop="recall" label="召回率" width="120" align="right">
+              <template #default="{ row }">{{ percent(row.recall) }}</template>
+            </el-table-column>
+            <el-table-column prop="f1" label="F1" width="120" align="right">
+              <template #default="{ row }">{{ percent(row.f1) }}</template>
+            </el-table-column>
+            <el-table-column prop="true_positive" label="TP" width="80" align="right" />
+            <el-table-column prop="false_positive" label="FP" width="80" align="right" />
+            <el-table-column prop="false_negative" label="FN" width="80" align="right" />
+            <el-table-column prop="true_negative" label="TN" width="80" align="right" />
+          </el-table>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
@@ -121,11 +146,16 @@ import { computed, onMounted, ref } from "vue";
 import { api } from "../api/client";
 
 const data = ref<any>(null);
+const accuracy = ref<any[]>([]);
 const days = ref(7);
 
 async function load() {
-  const response = await api.get("/metrics/operations", { params: { days: days.value } });
-  data.value = response.data;
+  const [metricsResponse, accuracyResponse] = await Promise.all([
+    api.get("/metrics/operations", { params: { days: days.value } }),
+    api.get("/models/accuracy"),
+  ]);
+  data.value = metricsResponse.data;
+  accuracy.value = accuracyResponse.data;
 }
 
 const kpis = computed(() => {

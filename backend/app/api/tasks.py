@@ -8,6 +8,7 @@ from app.api.deps import get_db, get_current_user
 from app.core.metrics import TASK_UPDATES
 from app.models import Event, Task, User
 from app.schemas import TaskCreate, TaskRead, TaskUpdate
+from app.services.escalation import escalate_overdue_tasks
 from app.services.event_service import write_audit
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
@@ -74,10 +75,14 @@ def escalate_overdue(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Task]:
-    now = datetime.utcnow()
-    tasks = db.query(Task).filter(Task.status == "pending", Task.due_at < now).all()
-    for task in tasks:
-        task.status = "escalated"
-        write_audit(db, current_user.id, "escalate_task", "task", task.id, {"status": "pending"}, {"status": "escalated"})
+    write_audit(
+        db,
+        current_user.id,
+        "trigger_escalation",
+        "task",
+        "batch",
+        before_value=None,
+        after_value={"actor": current_user.id},
+    )
     db.commit()
-    return tasks
+    return escalate_overdue_tasks(db)

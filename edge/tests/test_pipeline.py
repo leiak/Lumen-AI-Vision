@@ -5,6 +5,7 @@ from supervision import Detections
 
 from edge.visual_recognition_edge.person_behavior import PersonBehaviorEngine, PersonObservation
 from edge.visual_recognition_edge.pipeline import EdgePipeline
+from edge.visual_recognition_edge.privacy import PrivacyProcessor
 
 
 class FakeDetector:
@@ -153,3 +154,55 @@ def test_pipeline_attaches_person_behavior_to_event_frame():
     assert result.behavior_results[0].person_track_id == "track-cam-test-person-1"
     assert result.behavior_results[0].vehicle_track_id == "track-cam-test-1"
     assert result.behavior_results[0].behavior_label == "person_present"
+
+
+def test_privacy_processor_blurs_face_and_plate_regions():
+    processor = PrivacyProcessor(mosaic_size=4)
+    frame = np.zeros((400, 720, 3), dtype=np.uint8)
+    # 在人脸区填充带噪声的纹理，便于验证马赛克效果
+    rng = np.random.default_rng(42)
+    face_area = rng.integers(0, 255, size=(80, 60, 3), dtype=np.uint8)
+    frame[60:140, 160:220] = face_area
+    # 车牌条带同样填充噪声
+    plate_area = rng.integers(0, 255, size=(20, 220, 3), dtype=np.uint8)
+    frame[300:320, 90:310] = plate_area
+
+    observation = PersonObservation(
+        person_track_id="p1",
+        vehicle_track_id="v1",
+        vehicle_box=(100, 200, 300, 320),
+        bbox=(160, 60, 220, 140),
+        confidence=0.9,
+        keypoints=[{"name": "nose", "xy": [190.0, 90.0], "score": 0.95}],
+        center=(190.0, 90.0),
+    )
+    vehicle_box = (100, 200, 300, 320)
+    original = frame.copy()
+    blurred = processor.process(frame, [observation], [vehicle_box])
+
+    # 输出帧不应与原始帧完全相同
+    assert not np.array_equal(original, blurred)
+
+    # 人脸区域被马赛克：原图人脸区与模糊后人脸区必须不同
+    face_region_original = original[60:140, 160:220]
+    face_region_blurred = blurred[60:140, 160:220]
+    assert face_region_original.shape == face_region_blurred.shape
+    assert not np.array_equal(face_region_original, face_region_blurred)
+
+    # 车牌条带被马赛克
+    plate_original = original[300:320, 90:310]
+    plate_blurred = blurred[300:320, 90:310]
+    assert plate_original.shape == plate_blurred.shape
+    assert not np.array_equal(plate_original, plate_blurred)
+
+    # 非敏感区域应保持不变
+    untouched_original = original[0:50, 0:50]
+    untouched_blurred = blurred[0:50, 0:50]
+    assert np.array_equal(untouched_original, untouched_blurred)
+
+
+def test_privacy_processor_no_op_when_no_observations():
+    processor = PrivacyProcessor(mosaic_size=4)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    out = processor.process(frame, [], [])
+    assert np.array_equal(frame, out)

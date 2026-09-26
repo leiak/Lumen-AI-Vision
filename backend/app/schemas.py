@@ -42,6 +42,32 @@ class AreaRead(AreaCreate):
     enabled: bool = True
 
 
+class AreaGroupCreate(BaseModel):
+    id: str
+    name: str
+    area_ids: list[str] = []
+    priority: int = 0
+    dedup_window_seconds: int = 600
+
+
+class AreaGroupUpdate(BaseModel):
+    name: str | None = None
+    area_ids: list[str] | None = None
+    priority: int | None = None
+    dedup_window_seconds: int | None = None
+
+
+class AreaGroupRead(BaseModel):
+    id: str
+    name: str
+    area_ids: list[str]
+    priority: int
+    dedup_window_seconds: int
+
+    class Config:
+        from_attributes = True
+
+
 class KeyframeCreate(BaseModel):
     id: str
     timestamp: datetime

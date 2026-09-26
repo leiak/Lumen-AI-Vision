@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_current_user, require_roles
 from app.models import Area, Camera
 from app.schemas import AreaCreate, AreaRead, AreaUpdate
+from app.services.event_service import write_audit
 
 router = APIRouter(prefix="/api/v1/areas", tags=["areas"])
 
@@ -20,6 +21,16 @@ def create_area(payload: AreaCreate, db: Session = Depends(get_db), current_user
     db.add(area)
     db.commit()
     db.refresh(area)
+    write_audit(
+        db,
+        current_user.id,
+        "create_area",
+        "area",
+        area.id,
+        before_value=None,
+        after_value=payload.model_dump(),
+    )
+    db.commit()
     return area
 
 
@@ -38,10 +49,26 @@ def update_area(
     area = db.get(Area, area_id)
     if not area:
         raise HTTPException(status_code=404, detail="area not found")
+    before = {
+        "stay_threshold_seconds": area.stay_threshold_seconds,
+        "high_risk_seconds": area.high_risk_seconds,
+        "enabled": area.enabled,
+        "name": area.name,
+    }
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(area, field, value)
     if area.stay_threshold_seconds >= area.high_risk_seconds:
         raise HTTPException(status_code=422, detail="stay_threshold_seconds must be less than high_risk_seconds")
     db.commit()
     db.refresh(area)
+    write_audit(
+        db,
+        current_user.id,
+        "update_area",
+        "area",
+        area.id,
+        before_value=before,
+        after_value=payload.model_dump(exclude_unset=True),
+    )
+    db.commit()
     return area

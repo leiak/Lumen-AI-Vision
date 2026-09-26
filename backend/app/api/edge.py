@@ -9,6 +9,7 @@ from app.core.metrics import EDGE_EVENTS, EDGE_KEYFRAMES, EDGE_UPLOAD_FAILURES
 from app.models import Area, Camera, Event, Keyframe, PersonBehaviorResult, PersonTrack, VehicleTrack
 from app.schemas import EventCreate, KeyframeCreate
 from app.services.event_service import create_task_for_event, event_risk_level
+from app.services.dedup import DedupContext, build_dedup_key, find_duplicate
 from app.services.storage import object_name, upload_bytes
 
 router = APIRouter(prefix="/api/v1/edge", tags=["edge"], dependencies=[Depends(verify_edge_key)])
@@ -55,8 +56,22 @@ def report_event(payload: EventCreate, db: Session = Depends(get_db)) -> dict:
     risk_level = event_risk_level(area, payload.duration_seconds, payload.behaviors)
 
     event_id = f"evt-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
-    dedup_key = payload.dedup_key or f"{payload.camera_id}:{payload.area_id}:{payload.track.id}:{payload.start_time.isoformat()}"
-    existing = db.query(Event).filter(Event.dedup_key == dedup_key).first()
+    if payload.dedup_key:
+        # 边缘端提供了显式 dedup_key（一般是 track 维度），仅作为兜底
+        dedup_key = payload.dedup_key
+    else:
+        dedup_key = build_dedup_key(
+            db,
+            DedupContext(
+                camera_id=payload.camera_id,
+                area_id=payload.area_id,
+                track_id=payload.track.id,
+                plate_hash=payload.vehicle_plate_hash,
+                vehicle_type=payload.track.vehicle_type or "unknown",
+                start_time=payload.start_time,
+            ),
+        )
+    existing = find_duplicate(db, dedup_key, payload.start_time, window_seconds=600)
     if existing:
         db.commit()
         return {
@@ -140,6 +155,7 @@ def upload_keyframe(
     frame_id: str | None = Form(None),
     frame_role: str = Form("state_change"),
     timestamp: datetime = Form(...),
+    privacy_processed: bool = Form(False),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
@@ -161,7 +177,7 @@ def upload_keyframe(
         keyframe.storage_url = storage_url
         keyframe.event_id = event_id
         keyframe.frame_role = frame_role
-        keyframe.privacy_processed = False
+        keyframe.privacy_processed = privacy_processed
         db.commit()
         return {"id": keyframe.id, "storage_url": storage_url}
     keyframe = Keyframe(
@@ -171,9 +187,41 @@ def upload_keyframe(
         timestamp=timestamp,
         storage_url=storage_url,
         frame_role=frame_role,
-        privacy_processed=False,
+        privacy_processed=privacy_processed,
     )
     db.add(keyframe)
     db.commit()
     EDGE_KEYFRAMES.labels(frame_role=frame_role).inc()
     return {"id": keyframe.id, "storage_url": storage_url}
+
+
+@router.get("/config")
+def fetch_edge_config(
+    camera_id: str,
+    area_id: str | None = None,
+    db: Session = Depends(get_db),
+) -> dict:
+    """边缘端拉取最新的运行参数（阈值、节奏），用于热更新。
+
+    返回 revision 字段，客户端在相同 revision 时应跳过应用。
+    """
+    if not db.get(Camera, camera_id):
+        raise HTTPException(status_code=404, detail="camera not found")
+    area = db.get(Area, area_id) if area_id else None
+    revision = int(datetime.utcnow().timestamp())
+    payload: dict = {
+        "revision": revision,
+        "camera_id": camera_id,
+        "area_id": area_id,
+        "stay_threshold_seconds": area.stay_threshold_seconds if area else 300,
+        "high_risk_seconds": area.high_risk_seconds if area else 600,
+        "keyframe_interval_seconds": 10,
+        "movement_threshold_pixels": 15.0,
+        "lost_track_tolerance_seconds": 2.0,
+        "pose_sample_fps": 2.0,
+        "person_loitering_seconds": 120.0,
+        "person_movement_threshold_pixels": 12.0,
+        "person_lost_tolerance_seconds": 1.0,
+        "person_near_vehicle_margin_pixels": 120.0,
+    }
+    return payload

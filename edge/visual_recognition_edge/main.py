@@ -1,11 +1,41 @@
 import argparse
 import os
+import threading
 
 import cv2
+import httpx
 from datetime import datetime, timedelta
 
 from edge.visual_recognition_edge.config import EdgeSettings
 from edge.visual_recognition_edge.pipeline import EdgePipeline
+
+
+CONFIG_POLL_INTERVAL_SECONDS = 30
+
+
+def _start_config_poller(pipeline: EdgePipeline) -> None:
+    """后台线程：定时拉取 /edge/config 并热更新阈值。"""
+
+    def loop() -> None:
+        while True:
+            try:
+                response = httpx.get(
+                    f"{pipeline.api_base_url}/api/v1/edge/config",
+                    params={"camera_id": pipeline.camera_id, "area_id": pipeline.area_id},
+                    headers={"X-API-Key": pipeline.api_key},
+                    timeout=10,
+                )
+                response.raise_for_status()
+                applied = pipeline.apply_remote_config(response.json())
+                if applied:
+                    print(f"[edge] hot-reload applied: {applied}")
+            except Exception as exc:  # pragma: no cover - 网络抖动不致命
+                print(f"[edge] config poll failed: {exc}")
+            import time
+            time.sleep(CONFIG_POLL_INTERVAL_SECONDS)
+
+    thread = threading.Thread(target=loop, daemon=True, name="edge-config-poller")
+    thread.start()
 
 
 def run() -> None:
@@ -33,6 +63,7 @@ def run() -> None:
         person_movement_threshold_pixels=settings.person_movement_threshold_pixels,
         person_lost_tolerance_seconds=settings.person_lost_tolerance_seconds,
     )
+    _start_config_poller(pipeline)
     capture = cv2.VideoCapture(settings.video_source)
     fps = capture.get(cv2.CAP_PROP_FPS) or 25.0
     is_network_stream = str(settings.video_source).lower().startswith(("rtsp://", "http://", "https://"))

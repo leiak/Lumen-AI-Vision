@@ -29,6 +29,27 @@ def test_vl_fallback_explanation() -> None:
     assert score == 0.80
 
 
+def test_vl_filters_unprocessed_keyframes(monkeypatch) -> None:
+    """VL 服务只接受 privacy_processed=True 的关键帧；否则回退到本地解释。"""
+    from app.core.config import Settings
+    from app.services import vl_service
+    settings = Settings(vl_api_url="http://vl.test")
+    monkeypatch.setattr(vl_service, "get_settings", lambda: settings)
+
+    event = SimpleNamespace(duration_seconds=120, event_type="abnormal_stay")
+    unsafe = SimpleNamespace(privacy_processed=False, storage_url="local://x")
+    safe = SimpleNamespace(privacy_processed=True, storage_url="local://y")
+
+    # 没有脱敏帧时必须回退
+    summary, output, score = explain_event(event, [unsafe])
+    assert output["fallback_reason"] == "no privacy-processed keyframes available"
+    assert score == 0.80
+
+    # 全部未脱敏也必须回退
+    summary, output, score = explain_event(event, [unsafe, unsafe])
+    assert output["fallback_reason"] == "no privacy-processed keyframes available"
+
+
 def test_task_escalation(client_with_admin):
     client, headers = client_with_admin
     response = client.post("/api/v1/tasks/escalate-overdue", headers=headers)

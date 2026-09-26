@@ -17,6 +17,7 @@
       </el-select>
     </el-form-item>
     <el-button type="primary" @click="load">查询</el-button>
+    <el-button type="success" @click="exportCsv">导出 CSV</el-button>
   </el-form>
   <el-table :data="events" style="width: 100%">
     <el-table-column prop="id" label="事件ID" />
@@ -34,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import { ElMessage } from "element-plus";
 import { onMounted, ref } from "vue";
 import { reactive } from "vue";
 import { api } from "../api/client";
@@ -44,6 +46,21 @@ const filters = reactive({ risk_level: "", status: "" });
 async function load() {
   const response = await api.get("/events", { params: filters });
   events.value = response.data;
+}
+
+async function exportCsv() {
+  const response = await api.get("/exports/events", { responseType: "blob" });
+  const disposition = response.headers["content-disposition"] || "";
+  const filename = disposition.split("filename=")[1]?.replace(/"/g, "") || "events.csv";
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+  ElMessage.success("事件 CSV 已下载");
 }
 
 onMounted(load);

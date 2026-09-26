@@ -5,6 +5,8 @@ from datetime import datetime
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models import Area, Event, Keyframe, ModelResult, Task
+from app.services.escalation import escalate_overdue_tasks
+from app.services.retention import run_retention_cleanup
 from app.services.vl_service import explain_event
 from app.workers.celery_app import celery_app
 
@@ -13,11 +15,19 @@ from app.workers.celery_app import celery_app
 def escalate_overdue() -> int:
     db = SessionLocal()
     try:
-        tasks = db.query(Task).filter(Task.status == "pending", Task.due_at < datetime.utcnow()).all()
-        for task in tasks:
-            task.status = "escalated"
-        db.commit()
-        return len(tasks)
+        upgraded = escalate_overdue_tasks(db)
+        return len(upgraded)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.cleanup_old_data")
+def cleanup_old_data() -> dict[str, int]:
+    """每日数据保留清理任务（运维设计 §3.4）。"""
+    db = SessionLocal()
+    try:
+        results = run_retention_cleanup(db)
+        return {result.table: result.deleted for result in results}
     finally:
         db.close()
 

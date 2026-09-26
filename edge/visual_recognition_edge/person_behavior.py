@@ -265,6 +265,8 @@ class PersonBehaviorEngine:
         self.max_sequence_frames = max_sequence_frames
         self.states: dict[str, PersonBehaviorState] = {}
         self.latest_results: dict[str, BehaviorResult] = {}
+        # 最近一次姿态观测（用于上传关键帧时反查人脸框）
+        self.latest_observations: dict[str, PersonObservation] = {}
 
     def observe(
         self,
@@ -309,7 +311,18 @@ class PersonBehaviorEngine:
             sequence_end_time=now,
         )
         self.latest_results[observation.person_track_id] = result
+        self.latest_observations[observation.person_track_id] = observation
         return result
+
+    def observations_for_frame(self, vehicle_track_id: str | None = None) -> list[PersonObservation]:
+        """返回最近一次观测到的人员列表，可选按 vehicle_track_id 过滤。"""
+        if vehicle_track_id is None:
+            return list(self.latest_observations.values())
+        return [
+            observation
+            for observation in self.latest_observations.values()
+            if observation.vehicle_track_id == vehicle_track_id
+        ]
 
     def results_for_vehicle(self, vehicle_track_id: str) -> list[BehaviorResult]:
         return [

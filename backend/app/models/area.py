@@ -1,5 +1,5 @@
 from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -15,4 +15,10 @@ class Area(Base):
     stay_threshold_seconds: Mapped[int] = mapped_column(Integer, default=300)
     high_risk_seconds: Mapped[int] = mapped_column(Integer, default=600)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    area_groups: Mapped[list["AreaGroup"]] = relationship(
+        "AreaGroup",
+        secondary="area_group_members",
+        back_populates="areas",
+    )
 

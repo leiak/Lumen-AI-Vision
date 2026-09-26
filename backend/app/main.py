@@ -7,6 +7,8 @@ from app.api import auth, models, notifications, tasks, users
 from app.api import audit, metrics
 from app.api import training_samples
 from app.api import keyframes
+from app.api import area_groups
+from app.api import exports
 from app.core.security import hash_password
 from app.models import User
 from app.core.config import get_settings
@@ -38,6 +40,8 @@ app.include_router(metrics.router)
 app.include_router(audit.router)
 app.include_router(training_samples.router)
 app.include_router(keyframes.router)
+app.include_router(area_groups.router)
+app.include_router(exports.router)
 app.mount("/metrics", make_asgi_app())
 
 

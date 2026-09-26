@@ -27,11 +27,13 @@ async function load() {
 async function markRead(id: string) {
   await api.post(`/notifications/${id}/read`);
   await load();
+  window.dispatchEvent(new Event("unread-changed"));
 }
 
 async function markAllRead() {
   await api.post("/notifications/read-all");
   await load();
+  window.dispatchEvent(new Event("unread-changed"));
 }
 
 onMounted(load);

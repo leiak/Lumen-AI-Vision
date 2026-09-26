@@ -9,6 +9,7 @@ from app.api.deps import get_db, get_current_user
 from app.core.config import get_settings
 from app.models import Area, Event, Keyframe, ModelResult, User
 from app.schemas import ModelResultRead, TemporalClassifyRequest, VLExplainRequest
+from app.services.event_service import write_audit
 from app.services.vl_service import explain_event
 
 router = APIRouter(prefix="/api/v1/models", tags=["models"])
@@ -51,6 +52,16 @@ def temporal_classify(
     event.status = "confirmed" if label == "abnormal_stay" else "rejected"
     db.add(result)
     db.commit()
+    write_audit(
+        db,
+        current_user.id,
+        "temporal_classify",
+        "event",
+        event.id,
+        before_value=None,
+        after_value={"label": label, "score": score, "model_version": settings.temporal_model_version},
+    )
+    db.commit()
     db.refresh(result)
     return result
 
@@ -83,5 +94,43 @@ def vl_explain(
     event.summary = summary
     db.add(result)
     db.commit()
+    write_audit(
+        db,
+        current_user.id,
+        "vl_explain",
+        "event",
+        event.id,
+        before_value=None,
+        after_value={"model_version": settings.vl_model_version, "summary": summary[:200]},
+    )
+    db.commit()
     db.refresh(result)
     return result
+
+
+@router.get("/accuracy")
+def model_accuracy(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """模型准确率统计（运维设计 §3.6）。
+
+    返回每种模型类型的 precision / recall / f1 与混淆矩阵元素。
+    """
+    from app.services.model_evaluation import compute_accuracy
+
+    reports = compute_accuracy(db)
+    return [
+        {
+            "model_type": report.model_type,
+            "sample_count": report.sample_count,
+            "precision": round(report.precision, 4),
+            "recall": round(report.recall, 4),
+            "f1": round(report.f1, 4),
+            "true_positive": report.true_positive,
+            "false_positive": report.false_positive,
+            "false_negative": report.false_negative,
+            "true_negative": report.true_negative,
+        }
+        for report in reports
+    ]

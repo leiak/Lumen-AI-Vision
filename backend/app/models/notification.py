@@ -17,6 +17,6 @@ class Notification(Base):
     channel: Mapped[str] = mapped_column(String(30), default="in_app")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    escalation_level: Mapped[int] = mapped_column(Integer, default=0)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     read_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
-

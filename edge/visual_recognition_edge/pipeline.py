@@ -19,6 +19,7 @@ from edge.visual_recognition_edge.person_behavior import (
     PersonObservation,
     PersonPoseDetector,
 )
+from edge.visual_recognition_edge.privacy import PrivacyProcessor
 
 
 @dataclass
@@ -79,6 +80,8 @@ class EdgePipeline:
         person_lost_tolerance_seconds: float = 1.0,
         person_detector: PersonPoseDetector | None = None,
         behavior_engine: PersonBehaviorEngine | None = None,
+        privacy_processor: PrivacyProcessor | None = None,
+        enable_privacy: bool = True,
     ) -> None:
         self.camera_id = camera_id
         self.area_id = area_id
@@ -93,6 +96,8 @@ class EdgePipeline:
         self.lost_track_tolerance_seconds = lost_track_tolerance_seconds
         self.pose_sample_fps = pose_sample_fps
         self.person_lost_tolerance_seconds = person_lost_tolerance_seconds
+        self.enable_privacy = enable_privacy
+        self.privacy_processor = privacy_processor or PrivacyProcessor()
         self.tracks: dict[int, TrackState] = {}
         self.person_detector = person_detector or (
             PersonPoseDetector(
@@ -110,6 +115,43 @@ class EdgePipeline:
         )
         self.last_pose_sample_time: datetime | None = None
         self._last_vehicle_box: dict[int, tuple[float, float, float, float]] = {}
+        self._remote_config_revision: int = 0
+
+    # 字段名 → 类型的映射，用于远程配置热更新
+    _REMOTE_FIELDS: dict[str, type] = {
+        "stay_threshold_seconds": float,
+        "high_risk_seconds": float,
+        "keyframe_interval_seconds": float,
+        "movement_threshold_pixels": float,
+        "lost_track_tolerance_seconds": float,
+        "pose_sample_fps": float,
+        "person_loitering_seconds": float,
+        "person_movement_threshold_pixels": float,
+        "person_lost_tolerance_seconds": float,
+        "person_near_vehicle_margin_pixels": float,
+    }
+
+    def apply_remote_config(self, payload: dict) -> list[str]:
+        """根据服务端下发的阈值热更新本地参数。
+
+        返回实际生效的字段名清单；未知字段被忽略。
+        """
+        applied: list[str] = []
+        revision = payload.get("revision")
+        if isinstance(revision, int) and revision == self._remote_config_revision:
+            return applied  # 无变化
+        for field_name, caster in self._REMOTE_FIELDS.items():
+            if field_name in payload:
+                value = payload[field_name]
+                try:
+                    cast_value = caster(value)
+                except (TypeError, ValueError):
+                    continue
+                setattr(self, field_name, cast_value)
+                applied.append(field_name)
+        if isinstance(revision, int):
+            self._remote_config_revision = revision
+        return applied
 
     @staticmethod
     def center_in_polygon(center: tuple[float, float], polygon: list[list[float]]) -> bool:
@@ -235,7 +277,16 @@ class EdgePipeline:
         self.behavior_engine.prune(now, self.person_lost_tolerance_seconds)
 
     def upload_keyframe(self, frame: np.ndarray, result: FrameResult) -> dict[str, Any]:
-        ok, encoded = cv2.imencode(".jpg", frame)
+        # 隐私处理：上传前对人脸/车牌区域做马赛克
+        privacy_processed = False
+        if self.enable_privacy:
+            vehicle_boxes = list(self._last_vehicle_box.values())
+            observations = self.behavior_engine.observations_for_frame(result.track_id)
+            processed_frame = self.privacy_processor.process(frame, observations, vehicle_boxes)
+            ok, encoded = cv2.imencode(".jpg", processed_frame)
+            privacy_processed = True
+        else:
+            ok, encoded = cv2.imencode(".jpg", frame)
         if not ok:
             raise RuntimeError("failed to encode frame")
         start_time = datetime.fromtimestamp(result.timestamp.timestamp() - result.static_seconds)
@@ -277,6 +328,7 @@ class EdgePipeline:
                     "frame_role": result.keyframe_role,
                     "timestamp": result.timestamp.isoformat(),
                     "static_seconds": str(int(result.static_seconds)),
+                    "privacy_processed": str(privacy_processed).lower(),
                 },
                 files={"file": ("frame.jpg", encoded.tobytes(), "image/jpeg")},
                 headers={"X-API-Key": self.api_key},
