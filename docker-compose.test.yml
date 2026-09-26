@@ -1,0 +1,62 @@
+# 仅用于 mock-data 测试的 compose：SQLite + 本地文件存储 + 不依赖任何外部服务
+# 用法：
+#   docker compose -f docker-compose.test.yml run --rm backend-test
+#
+# 服务列表：
+#   backend      : 启动 API + Celery worker + Celery beat（一个容器里三个进程）
+#   e2e-runner   : 跑端到端 pytest 后退出
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: sqlite:////tmp/visual_recognition.db
+      REDIS_URL: memory://
+      RABBITMQ_URL: memory://
+      STORAGE_BACKEND: local
+      STORAGE_LOCAL_PATH: /tmp/keyframes
+      VL_API_URL: ""
+      NOTIFICATION_WEBHOOK_URL: ""
+      SECRET_KEY: test-secret
+      EDGE_API_KEY: test-edge-key
+    ports:
+      - "8000:8000"
+    volumes:
+      - test_data:/tmp
+    command: >
+      sh -c "
+        python -m pytest -q tests/test_e2e_simulation.py --tb=short -s &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+
+  e2e-runner:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: sqlite:////tmp/visual_recognition.db
+      STORAGE_BACKEND: local
+      STORAGE_LOCAL_PATH: /tmp/keyframes
+      SECRET_KEY: test-secret
+      EDGE_API_KEY: test-edge-key
+    volumes:
+      - test_data:/tmp
+    command: python -m pytest -q tests/ --tb=short
+
+  full-runner:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: sqlite:////tmp/visual_recognition.db
+      STORAGE_BACKEND: local
+      STORAGE_LOCAL_PATH: /tmp/keyframes
+      SECRET_KEY: test-secret
+      EDGE_API_KEY: test-edge-key
+    volumes:
+      - test_data:/tmp
+    command: python -m pytest -q tests/test_e2e_simulation.py --tb=short -s
+
+volumes:
+  test_data:
